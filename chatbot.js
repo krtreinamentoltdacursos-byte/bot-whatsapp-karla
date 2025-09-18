@@ -1,11 +1,13 @@
-// bot-whatsapp.js
 const qrcode = require('qrcode-terminal');
 const { Client } = require('whatsapp-web.js');
 const client = new Client();
 
 // leitura QR
 client.on('qr', qr => {
-    qrcode.generate(qr, { small: true });
+    // A correção para o QR Code distorcido está aqui
+    // Em vez de gerar a imagem no terminal, vamos imprimir o texto Base64
+    // Você vai copiar esse texto e colá-lo em um site para ver a imagem do QR Code
+    console.log('QR Code Base64:', qr);
 });
 
 // pronto
