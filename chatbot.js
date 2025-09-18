@@ -1,46 +1,51 @@
 const qrcode = require('qrcode-terminal');
+const QRCode = require('qrcode');
 const { Client, LocalAuth } = require('whatsapp-web.js');
+const express = require('express');
+
+// Inicializa o cliente WhatsApp
 const client = new Client({
     authStrategy: new LocalAuth()
 });
 
-// leitura QR
+// Armazena o último QR gerado
+let latestQr = null;
+
+// Evento de QR Code
 client.on('qr', qr => {
-    // A correção para o QR Code distorcido está aqui
-    // Em vez de gerar a imagem no terminal, vamos imprimir o texto Base64
-    // Você vai copiar esse texto e colá-lo em um site para ver a imagem do QR Code
-    console.log('QR Code Base64:', qr);
+    latestQr = qr;
+    console.log('=== Escaneie o QR Code abaixo no terminal ===');
+    qrcode.generate(qr, { small: true }); // Exibe no terminal
 });
 
-// pronto
+// Evento pronto
 client.on('ready', () => {
     console.log('Tudo certo! WhatsApp conectado.');
 });
 
-// inicializa
+// Inicia o cliente
 client.initialize();
 
+// Função delay
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 // --- Funil de Atendimento ---
-// Armazena estado por usuário
 const userStates = {};
 
 // Função para simular digitação e enviar mensagem corretamente
 const sendTypingAndMessage = async (chat, message) => {
-    const chatId = chat && chat.id && chat.id._serialized ? chat.id._serialized : null;
+    const chatId = chat?.id?._serialized;
 
     try {
         if (!chatId) throw new Error('chatId não encontrado para enviar a mensagem.');
 
-        // inicia "digitando"
         await chat.sendStateTyping();
         await delay(1200);
         await client.sendMessage(chatId, message);
     } catch (err) {
-        console.error('Erro ao enviar mensagem:', err && err.message ? err.message : err);
+        console.error('Erro ao enviar mensagem:', err?.message || err);
     } finally {
-        try { await chat.clearState(); } catch (e) { /* ignora */ }
+        try { await chat.clearState(); } catch (e) { }
     }
 };
 
@@ -57,8 +62,9 @@ client.on('message', async msg => {
         // Resetar para o menu
         if (body.match(/\b(menu|0|oi|olá|ola)\b/)) {
             const contact = await msg.getContact();
-            const push = contact && contact.pushname ? contact.pushname.split(" ")[0] : '';
+            const push = contact?.pushname ? contact.pushname.split(" ")[0] : '';
             userStates[userNumber] = null;
+
             const greeting = `Olá${push ? ', ' + push : ''}! Sou o assistente virtual da Dra. Karla Sampaio. Para qual área do direito você precisa de ajuda hoje?\n\n` +
                 `1 - Direito de Família e Sucessões\n` +
                 `2 - Direito do Consumidor\n` +
@@ -68,6 +74,7 @@ client.on('message', async msg => {
                 `6 - Direito Penal\n` +
                 `7 - Outro Serviço\n\n` +
                 `Para voltar a este menu, digite "menu" ou "0" a qualquer momento.`;
+
             await sendTypingAndMessage(chat, greeting);
             return;
         }
@@ -142,13 +149,28 @@ client.on('message', async msg => {
             await sendTypingAndMessage(chat, 'Desculpe, não entendi. Digite "menu" para ver as opções novamente.');
         }
     } catch (err) {
-        console.error('Erro no handler de mensagem:', err && err.message ? err.message : err);
+        console.error('Erro no handler de mensagem:', err?.message || err);
     }
 });
 
-// --- Servidor para Render (plano gratuito) ---
-const express = require('express');
+// --- Servidor Express para Render ---
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Rota principal
 app.get('/', (req, res) => res.send('Bot da Dra. Karla está rodando!'));
+
+// Rota para exibir QR Code como imagem
+app.get('/qr', async (req, res) => {
+    if (!latestQr) {
+        return res.send('QR Code ainda não gerado. Aguarde o bot iniciar.');
+    }
+    try {
+        const qrImage = await QRCode.toDataURL(latestQr);
+        res.send(`<h2>Escaneie o QR Code abaixo no WhatsApp:</h2><img src="${qrImage}"/>`);
+    } catch (err) {
+        res.status(500).send('Erro ao gerar QR Code.');
+    }
+});
+
 app.listen(PORT, () => console.log(`Servidor ativo na porta ${PORT}`));
