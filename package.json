@@ -10,6 +10,7 @@
   "main": "chatbot.js",
   "devDependencies": {},
   "scripts": {
+    "start": "node chatbot.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
