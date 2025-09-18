@@ -1,5 +1,4 @@
-const fs = require('fs');
-const qrcode = require('qrcode');
+const qrcode = require('qrcode'); // vamos usar o pacote qrcode para gerar imagem
 const qrcodeTerminal = require('qrcode-terminal');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
@@ -7,24 +6,18 @@ const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 🔹 limpar sessão antiga (garante novo QR a cada deploy no Render)
-try {
-    fs.rmSync('.wwebjs_auth', { recursive: true, force: true });
-    console.log("Sessão antiga apagada. Um novo QR será gerado.");
-} catch (e) {}
-
 let qrCodeData = null;
 
-// 🔹 inicializa cliente com LocalAuth
+// 🔑 Força nova sessão (mude o clientId quando precisar reconectar)
 const client = new Client({
-    authStrategy: new LocalAuth({ clientId: "karla-session" }),
-    restartOnAuthFail: true
+    authStrategy: new LocalAuth({ clientId: "sessao2" })
 });
 
 // leitura QR
 client.on('qr', async qr => {
-    qrcodeTerminal.generate(qr, { small: true }); // mostra no terminal
-    console.log('QR Code gerado! Escaneie com o celular.');
+    // mostra no terminal (caso rode localmente)
+    qrcodeTerminal.generate(qr, { small: true });
+    console.log('QR Code gerado! Escaneie pelo celular.');
 
     // guarda em memória para exibir no navegador
     qrCodeData = await qrcode.toDataURL(qr);
@@ -32,7 +25,7 @@ client.on('qr', async qr => {
 
 // pronto
 client.on('ready', () => {
-    console.log('✅ Tudo certo! WhatsApp conectado.');
+    console.log('Tudo certo! WhatsApp conectado.');
     qrCodeData = null; // limpa o QR após login
 });
 
@@ -141,12 +134,7 @@ app.get('/qrcode', (req, res) => {
     if (!qrCodeData) {
         return res.send('✅ WhatsApp já conectado ou QR ainda não gerado. Verifique os logs.');
     }
-    res.send(`
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;">
-            <h1>📱 Escaneie o QR Code</h1>
-            <img src="${qrCodeData}" style="width:400px;height:400px;" />
-        </div>
-    `);
+    res.send(`<h1>Escaneie o QR Code</h1><img src="${qrCodeData}" />`);
 });
 
 app.listen(PORT, () => console.log(`Servidor ativo na porta ${PORT}`));
