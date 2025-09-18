@@ -1,4 +1,4 @@
-const qrcode = require('qrcode'); // vamos usar o pacote qrcode para gerar imagem
+const qrcode = require('qrcode'); // pacote para gerar imagem base64
 const qrcodeTerminal = require('qrcode-terminal');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
@@ -12,20 +12,20 @@ const client = new Client({
     authStrategy: new LocalAuth()
 });
 
-// leitura QR
+// === QR Code ===
 client.on('qr', async qr => {
-    // mostra no terminal (caso rode localmente)
+    // mostra no terminal (se rodar localmente)
     qrcodeTerminal.generate(qr, { small: true });
     console.log('QR Code gerado! Escaneie pelo celular.');
 
-    // guarda em memória para exibir no navegador
+    // gera base64 para exibir no navegador
     qrCodeData = await qrcode.toDataURL(qr);
 });
 
-// pronto
+// === Quando conecta ===
 client.on('ready', () => {
     console.log('Tudo certo! WhatsApp conectado.');
-    qrCodeData = null; // limpa o QR após login
+    qrCodeData = null; // limpa o QR, pois já logou
 });
 
 // inicializa
@@ -38,7 +38,6 @@ const userStates = {};
 
 const sendTypingAndMessage = async (chat, message) => {
     const chatId = chat?.id?._serialized || null;
-
     try {
         if (!chatId) throw new Error('chatId não encontrado para enviar a mensagem.');
 
@@ -61,6 +60,7 @@ client.on('message', async msg => {
 
         console.log(`[${new Date().toISOString()}] Mensagem de ${userNumber}: ${rawBody}`);
 
+        // Menu inicial
         if (body.match(/\b(menu|0|oi|olá|ola)\b/)) {
             const contact = await msg.getContact();
             const push = contact?.pushname ? contact.pushname.split(" ")[0] : '';
@@ -78,6 +78,7 @@ client.on('message', async msg => {
             return;
         }
 
+        // Submenus
         if (userStates[userNumber]) {
             const state = userStates[userNumber];
             const commonAgendamento = 'Perfeito! Para agendar sua consulta, acesse o link: [INSIRA O LINK DE AGENDAMENTO AQUI]\n\nNeste link, você poderá escolher a melhor data e horário para falarmos sobre o seu caso. Aguardamos você!';
@@ -97,6 +98,7 @@ client.on('message', async msg => {
             }
         }
 
+        // Opções principais
         if (body === '1') {
             await sendTypingAndMessage(chat, 'Passando por um divórcio ou buscando a guarda dos seus filhos? ...\n\nPara agendar sua consulta, digite **1**.\nPara saber mais, digite **2**.');
             userStates[userNumber] = 'familyLaw';
@@ -129,14 +131,15 @@ client.on('message', async msg => {
 // --- Servidor Express para Render ---
 app.get('/', (req, res) => res.send('🤖 Bot da Dra. Karla está rodando!'));
 
+// rota para exibir QR Code
 app.get('/qrcode', (req, res) => {
     if (!qrCodeData) {
-        return res.send('✅ WhatsApp já conectado ou QR ainda não gerado. Verifique os logs.');
+        return res.send('<h3>✅ WhatsApp já conectado ou QR ainda não gerado. Veja os logs.</h3>');
     }
     res.send(`<h1>Escaneie o QR Code</h1><img src="${qrCodeData}" />`);
 });
 
-// rota de status do bot
+// rota para status do bot
 app.get('/status', (req, res) => {
     if (qrCodeData) {
         return res.send('📲 Aguardando escaneamento do QR Code.');
