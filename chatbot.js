@@ -1,35 +1,42 @@
-const qrcode = require('qrcode'); // vamos usar o pacote qrcode para gerar imagem
+const qrcode = require('qrcode');
 const qrcodeTerminal = require('qrcode-terminal');
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
+const fetch = require('node-fetch');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 let qrCodeData = null;
 
-// 🔑 Força nova sessão (mude o clientId quando precisar reconectar)
+// ✅ Usa LocalAuth com clientId fixo para manter a sessão
 const client = new Client({
-    authStrategy: new LocalAuth({ clientId: "sessao2" })
+    authStrategy: new LocalAuth({
+        clientId: "bot-karla"
+    })
 });
 
-// leitura QR
+// --- QR Code ---
 client.on('qr', async qr => {
-    // mostra no terminal (caso rode localmente)
     qrcodeTerminal.generate(qr, { small: true });
     console.log('QR Code gerado! Escaneie pelo celular.');
-
-    // guarda em memória para exibir no navegador
     qrCodeData = await qrcode.toDataURL(qr);
 });
 
-// pronto
+// --- Quando conectar ---
 client.on('ready', () => {
-    console.log('Tudo certo! WhatsApp conectado.');
-    qrCodeData = null; // limpa o QR após login
+    console.log('✅ WhatsApp conectado!');
+    qrCodeData = null;
 });
 
-// inicializa
+// --- Se desconectar, tenta reconectar ---
+client.on('disconnected', (reason) => {
+    console.log('❌ Cliente desconectado:', reason);
+    console.log('🔄 Tentando reconectar...');
+    client.initialize();
+});
+
+// Inicializa cliente
 client.initialize();
 
 const delay = ms => new Promise(res => setTimeout(res, ms));
@@ -42,7 +49,6 @@ const sendTypingAndMessage = async (chat, message) => {
 
     try {
         if (!chatId) throw new Error('chatId não encontrado para enviar a mensagem.');
-
         await chat.sendStateTyping();
         await delay(1200);
         await client.sendMessage(chatId, message);
@@ -81,7 +87,7 @@ client.on('message', async msg => {
 
         if (userStates[userNumber]) {
             const state = userStates[userNumber];
-            const commonAgendamento = 'Perfeito! Para agendar sua consulta, acesse o link: [INSIRA O LINK DE AGENDAMENTO AQUI]\n\nNeste link, você poderá escolher a melhor data e horário para falarmos sobre o seu caso. Aguardamos você!';
+            const commonAgendamento = 'Perfeito! Para agendar sua consulta, acesse o link: [INSIRA O LINK DE AGENDAMENTO AQUI]';
             const commonMais = 'Para saber mais sobre a área e ler nossos artigos, visite o blog da Dra. Karla Sampaio: [INSIRA O LINK DO BLOG AQUI]';
 
             if (['familyLaw','consumerLaw','laborLaw','civilLaw','socialSecurityLaw','criminalLaw'].includes(state)) {
@@ -99,22 +105,22 @@ client.on('message', async msg => {
         }
 
         if (body === '1') {
-            await sendTypingAndMessage(chat, 'Passando por um divórcio ou buscando a guarda dos seus filhos? ...\n\nPara agendar sua consulta, digite **1**.\nPara saber mais, digite **2**.');
+            await sendTypingAndMessage(chat, 'Passando por um divórcio ou buscando a guarda dos seus filhos? ...\n\nDigite **1** para agendar ou **2** para saber mais.');
             userStates[userNumber] = 'familyLaw';
         } else if (body === '2') {
-            await sendTypingAndMessage(chat, 'Comprou um produto com defeito? ...\n\nPara agendar sua consulta, digite **1**.\nPara saber mais, digite **2**.');
+            await sendTypingAndMessage(chat, 'Comprou um produto com defeito? ...\n\nDigite **1** para agendar ou **2** para saber mais.');
             userStates[userNumber] = 'consumerLaw';
         } else if (body === '3') {
-            await sendTypingAndMessage(chat, 'Você foi demitido sem justa causa? ...\n\nPara agendar sua consulta, digite **1**.\nPara saber mais, digite **2**.');
+            await sendTypingAndMessage(chat, 'Você foi demitido sem justa causa? ...\n\nDigite **1** para agendar ou **2** para saber mais.');
             userStates[userNumber] = 'laborLaw';
         } else if (body === '4') {
-            await sendTypingAndMessage(chat, 'Comprando um imóvel? ...\n\nPara agendar sua consulta, digite **1**.\nPara saber mais, digite **2**.');
+            await sendTypingAndMessage(chat, 'Comprando um imóvel? ...\n\nDigite **1** para agendar ou **2** para saber mais.');
             userStates[userNumber] = 'civilLaw';
         } else if (body === '5') {
-            await sendTypingAndMessage(chat, 'Teve sua aposentadoria negada? ...\n\nPara agendar sua consulta, digite **1**.\nPara saber mais, digite **2**.');
+            await sendTypingAndMessage(chat, 'Teve sua aposentadoria negada? ...\n\nDigite **1** para agendar ou **2** para saber mais.');
             userStates[userNumber] = 'socialSecurityLaw';
         } else if (body === '6') {
-            await sendTypingAndMessage(chat, '🚨 **ASSISTÊNCIA JURÍDICA URGENTE** 🚨 ...\n\nPara agendar sua consulta, digite **1**.\nPara saber mais, digite **2**.');
+            await sendTypingAndMessage(chat, '🚨 **ASSISTÊNCIA JURÍDICA URGENTE** 🚨 ...\n\nDigite **1** para agendar ou **2** para saber mais.');
             userStates[userNumber] = 'criminalLaw';
         } else if (body === '7') {
             await sendTypingAndMessage(chat, 'Para outros serviços ou dúvidas, envie sua mensagem e a equipe responderá em breve.');
@@ -127,7 +133,7 @@ client.on('message', async msg => {
     }
 });
 
-// --- Servidor Express para Render ---
+// --- Servidor Express ---
 app.get('/', (req, res) => res.send('🤖 Bot da Dra. Karla está rodando!'));
 
 app.get('/qrcode', (req, res) => {
@@ -136,5 +142,10 @@ app.get('/qrcode', (req, res) => {
     }
     res.send(`<h1>Escaneie o QR Code</h1><img src="${qrCodeData}" />`);
 });
+
+// --- Mantém o Render ativo ---
+setInterval(() => {
+    fetch(`https://bot-whatsapp-karla.onrender.com/`).catch(() => {});
+}, 14 * 60 * 1000);
 
 app.listen(PORT, () => console.log(`Servidor ativo na porta ${PORT}`));
