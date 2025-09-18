@@ -1,20 +1,21 @@
 {
   "dependencies": {
+    "express": "^4.18.2",
     "moment-timezone": "^0.5.45",
     "openai": "^4.78.1",
     "qrcode-terminal": "^0.12.0",
     "whatsapp-web.js": "1.33.2"
   },
-  "name": "chatbot",
+  "name": "bot-whatsapp-karla",
   "version": "1.0.0",
-  "main": "chatbot.js",
+  "main": "bot-whatsapp.js",
   "devDependencies": {},
   "scripts": {
-    "start": "node chatbot.js",
+    "start": "node bot-whatsapp.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
+  "author": "KR Treinamentos",
   "license": "ISC",
-  "description": ""
+  "description": "Assistente Virtual Dra. Karla Sampaio"
 }
