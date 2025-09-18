@@ -9,7 +9,12 @@ client.on('qr', qr => {
     // A correção para o QR Code distorcido está aqui
     // Em vez de gerar a imagem no terminal, vamos imprimir o texto Base64
     // Você vai copiar esse texto e colá-lo em um site para ver a imagem do QR Code
-    console.log('QR Code Base64:', qr);
+    // --- Código Original ---
+    // console.log('QR Code Base64:', qr);
+
+    // --- Código Corrigido para exibir o QR Code no terminal ---
+    qrcode.generate(qr, { small: true });
+    console.log('Por favor, escaneie o QR Code acima.');
 });
 
 // pronto
