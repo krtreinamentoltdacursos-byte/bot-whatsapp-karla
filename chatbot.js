@@ -136,4 +136,12 @@ app.get('/qrcode', (req, res) => {
     res.send(`<h1>Escaneie o QR Code</h1><img src="${qrCodeData}" />`);
 });
 
+// rota de status do bot
+app.get('/status', (req, res) => {
+    if (qrCodeData) {
+        return res.send('📲 Aguardando escaneamento do QR Code.');
+    }
+    return res.send('✅ Bot já conectado ao WhatsApp.');
+});
+
 app.listen(PORT, () => console.log(`Servidor ativo na porta ${PORT}`));
