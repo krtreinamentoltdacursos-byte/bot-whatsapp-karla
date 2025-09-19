@@ -1,0 +1,16 @@
+{
+  "name": "chatbot-karla",
+  "version": "1.0.0",
+  "description": "Chatbot jurídico da Dra. Karla Sampaio usando whatsapp-web.js",
+  "main": "chatbot.js",
+  "scripts": {
+    "start": "node chatbot.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^2.6.7",
+    "qrcode": "^1.5.3",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.22.0"
+  }
+}
