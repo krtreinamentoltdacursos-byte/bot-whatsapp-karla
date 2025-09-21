@@ -1,148 +1,167 @@
-const qrcode = require('qrcode');
-const qrcodeTerminal = require('qrcode-terminal');
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const express = require('express');
-const fetch = require('node-fetch');
+const express = require("express");
+const { Client, LocalAuth } = require("whatsapp-web.js");
+const qrcode = require("qrcode-terminal");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 3000;
 
-let qrCodeData = null;
+// 🚀 Rota básica (Render precisa de uma URL pública)
+app.get("/", (req, res) => {
+  res.send("🤖 Bot Jurídico WhatsApp rodando!");
+});
 
-// ✅ Inicializa client ANTES de usar
+app.listen(port, () => {
+  console.log(`Servidor rodando na porta ${port}`);
+});
+
+// 🔐 Inicializa o cliente WhatsApp
 const client = new Client({
-    authStrategy: new LocalAuth({
-        clientId: "bot-karla"
-    })
+  authStrategy: new LocalAuth(),
+  puppeteer: {
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+  },
 });
 
-// --- QR Code ---
-client.on('qr', async qr => {
-    console.log('📱 QR Code gerado! Acesse a URL do seu bot com "/qrcode" no final.');
-    qrCodeData = await qrcode.toDataURL(qr);
+// Exibe QR Code no terminal
+client.on("qr", (qr) => {
+  qrcode.generate(qr, { small: true });
+  console.log("📲 Escaneie o QR Code acima para conectar seu WhatsApp");
 });
 
-// --- Quando conectar ---
-client.on('ready', () => {
-    console.log('✅ WhatsApp conectado!');
-    qrCodeData = null;
+// Confirma que está pronto
+client.on("ready", () => {
+  console.log("✅ Bot conectado e pronto para uso!");
 });
 
-// --- Se desconectar, tenta reconectar ---
-client.on('disconnected', (reason) => {
-    console.log('❌ Cliente desconectado:', reason);
-    console.log('🔄 Tentando reconectar...');
-    client.initialize();
+// ===========================
+// 🔄 Controle de fluxo por cliente
+// ===========================
+let etapas = {}; // { numero: etapa }
+let timers = {}; // { numero: timeout }
+
+// Função para encerrar o contato por inatividade
+function encerrarContato(numero, chat) {
+  chat.sendMessage(
+    "⏳ Como não tivemos mais retorno, estamos encerrando este atendimento.\n\n" +
+    "👉 Quando desejar, pode nos chamar novamente.\n" +
+    "📌 Lembre-se: agende sua consulta de 50 minutos pelo Meet:\n" +
+    "🔗 https://calendar.app.google/SfBNgXZHyH429Yhy6\n\n" +
+    "A *Dra. Karla Sampaio* e sua equipe estarão prontas para ajudar você. ⚖️"
+  );
+  etapas[numero] = 0; // volta ao estado inicial
+  delete timers[numero]; // limpa o timer
+}
+
+// Automação principal
+client.on("message", async (msg) => {
+  const from = msg.from; // Número do cliente
+  const chat = await msg.getChat();
+
+  // Resetar timer sempre que o cliente falar
+  if (timers[from]) {
+    clearTimeout(timers[from]);
+  }
+  timers[from] = setTimeout(() => encerrarContato(from, chat), 15 * 60 * 1000); // 15 min
+
+  if (!etapas[from]) {
+    etapas[from] = 0; // etapa inicial
+  }
+
+  // =====================
+  // Etapa 0 → Mensagem inicial
+  // =====================
+  if (etapas[from] === 0) {
+    await msg.reply(
+      "👋 Olá! Seja bem-vindo(a).\n\n" +
+      "Sou o assistente jurídico da *Dra. Karla Sampaio*.\n\n" +
+      "Escolha uma das áreas em que deseja atendimento:\n\n" +
+      "1️⃣ Direito de Família 👨‍👩‍👧\n" +
+      "2️⃣ Direito Trabalhista ⚖️\n" +
+      "3️⃣ Direito Previdenciário 👵\n" +
+      "4️⃣ Direito Civil 🏛️\n" +
+      "5️⃣ Direito Criminal 🚨\n\n" +
+      "Ou digite *6* para saber mais sobre nosso trabalho. 📲"
+    );
+    etapas[from] = 1;
+  }
+
+  // =====================
+  // Etapa 1 → Escolha da área
+  // =====================
+  else if (etapas[from] === 1) {
+    switch (msg.body) {
+      case "1":
+        await msg.reply(
+          "👨‍👩‍👧 Você escolheu *Direito de Família*.\n\n" +
+          "Auxiliamos em divórcios, pensão alimentícia, guarda de filhos e partilha de bens.\n\n" +
+          "👉 Para agendar uma consulta estratégica de *50 minutos pelo Google Meet*, clique no link abaixo:\n" +
+          "🔗 https://calendar.app.google/SfBNgXZHyH429Yhy6\n\n" +
+          "✅ Essa consulta é o primeiro passo para resolver sua questão com segurança."
+        );
+        etapas[from] = 0;
+        break;
+
+      case "2":
+        await msg.reply(
+          "⚖️ Você escolheu *Direito Trabalhista*.\n\n" +
+          "Atuamos em causas de rescisão, verbas trabalhistas, assédio moral e direitos não pagos.\n\n" +
+          "👉 Agende sua consulta estratégica de *50 minutos pelo Google Meet*:\n" +
+          "🔗 https://calendar.app.google/SfBNgXZHyH429Yhy6\n\n" +
+          "🔒 Tenha seus direitos garantidos com segurança jurídica."
+        );
+        etapas[from] = 0;
+        break;
+
+      case "3":
+        await msg.reply(
+          "👵 Você escolheu *Direito Previdenciário*.\n\n" +
+          "Ajudamos em aposentadorias, revisões de benefícios, auxílio-doença e pensões.\n\n" +
+          "👉 Reserve sua consulta estratégica de *50 minutos pelo Google Meet*:\n" +
+          "🔗 https://calendar.app.google/SfBNgXZHyH429Yhy6\n\n" +
+          "✅ Tenha clareza sobre seu direito e os próximos passos."
+        );
+        etapas[from] = 0;
+        break;
+
+      case "4":
+        await msg.reply(
+          "🏛️ Você escolheu *Direito Civil*.\n\n" +
+          "Cuidamos de contratos, indenizações, dívidas e demais litígios cíveis.\n\n" +
+          "👉 Agende sua consulta estratégica de *50 minutos pelo Google Meet*:\n" +
+          "🔗 https://calendar.app.google/SfBNgXZHyH429Yhy6\n\n" +
+          "📌 Invista em orientação jurídica antes de tomar decisões importantes."
+        );
+        etapas[from] = 0;
+        break;
+
+      case "5":
+        await msg.reply(
+          "🚨 Você escolheu *Direito Criminal*.\n\n" +
+          "Oferecemos defesa técnica em investigações, audiências e processos criminais.\n\n" +
+          "👉 Marque sua consulta estratégica de *50 minutos pelo Google Meet*:\n" +
+          "🔗 https://calendar.app.google/SfBNgXZHyH429Yhy6\n\n" +
+          "⚖️ Sua liberdade e seus direitos merecem atenção imediata."
+        );
+        etapas[from] = 0;
+        break;
+
+      case "6":
+        await msg.reply(
+          "📲 Para saber mais sobre nosso trabalho e conteúdos exclusivos,\n" +
+          "acesse nossa rede social no TikTok:\n" +
+          "🔗 www.tiktok.com/@_karlasampaio_"
+        );
+        etapas[from] = 0;
+        break;
+
+      default:
+        await msg.reply(
+          "❌ Opção inválida. Por favor, escolha uma das opções do menu inicial."
+        );
+        etapas[from] = 1;
+    }
+  }
 });
 
-// Inicializa cliente
+// Inicia o cliente
 client.initialize();
-
-const delay = ms => new Promise(res => setTimeout(res, ms));
-
-// --- Funil de Atendimento ---
-const userStates = {};
-
-const sendTypingAndMessage = async (chat, message) => {
-    const chatId = chat?.id?._serialized || null;
-
-    try {
-        if (!chatId) throw new Error('chatId não encontrado para enviar a mensagem.');
-        await chat.sendStateTyping();
-        await delay(1200);
-        await client.sendMessage(chatId, message);
-    } catch (err) {
-        console.error('Erro ao enviar mensagem:', err.message || err);
-    } finally {
-        try { await chat.clearState(); } catch (e) {}
-    }
-};
-
-client.on('message', async msg => {
-    try {
-        const chat = await msg.getChat();
-        const chatId = chat.id._serialized; // 🔑 identificador único do chat
-        const rawBody = (msg.body || '').trim();
-        const body = rawBody.toLowerCase();
-
-        console.log(`[${new Date().toISOString()}] Mensagem de ${chatId}: ${rawBody}`);
-
-        // --- Menu inicial ---
-        if (body.match(/\b(menu|0|oi|olá|ola|boa noite|bom dia|boa tarde|tudo bem|pode me ajudar)\b/)) {
-            const contact = await msg.getContact();
-            const push = contact?.pushname ? contact.pushname.split(" ")[0] : '';
-            userStates[chatId] = null;
-            const greeting = `Olá${push ? ', ' + push : ''}! Sou o assistente virtual da Dra. Karla Sampaio, sua parceira jurídica para os momentos mais importantes da vida. Entendo que cada situação é única e merece atenção especializada.\n\nPara qual área do direito você busca orientação hoje?` +
-                `\n\n1 - Direito de Família e Sucessões: Para quem busca apoio em momentos de mudança familiar.` +
-                `\n2 - Direito do Consumidor: Seus direitos como consumidor são inegociáveis.` +
-                `\n3 - Direito Trabalhista: Garantindo um ambiente de trabalho justo e seguro.` +
-                `\n4 - Direito Civil e Imobiliário: Segurança e clareza nas suas relações e propriedades.` +
-                `\n5 - Direito Previdenciário: Seus direitos à aposentadoria e benefícios sociais.` +
-                `\n6 - Direito Penal: Defesa e orientação em momentos críticos.` +
-                `\n7 - Outro Serviço: Para necessidades jurídicas específicas.\n\n` +
-                `Basta digitar o número da opção desejada. Para voltar a este menu, digite "menu" ou "0" a qualquer momento.`;
-            await sendTypingAndMessage(chat, greeting);
-            return;
-        }
-
-        // --- Estados intermediários (submenu agendar/saber mais) ---
-        if (userStates[chatId]) {
-            const state = userStates[chatId];
-            const commonAgendamento = 'Perfeito! Para agendar sua consulta e dar o primeiro passo rumo à solução, acesse o link: [INSIRA O LINK DE AGENDAMENTO AQUI]. A Dra. Karla está pronta para te ouvir.';
-            const commonMais = 'Para saber mais sobre a área e ter acesso a conteúdos exclusivos que podem te ajudar, visite o blog da Dra. Karla Sampaio: [INSIRA O LINK DO BLOG AQUI]. Conhecimento é poder!';
-
-            if (['familyLaw','consumerLaw','laborLaw','civilLaw','socialSecurityLaw','criminalLaw'].includes(state)) {
-                if (body === '1') {
-                    await sendTypingAndMessage(chat, commonAgendamento);
-                    userStates[chatId] = null;
-                } else if (body === '2') {
-                    await sendTypingAndMessage(chat, commonMais);
-                    userStates[chatId] = null;
-                } else {
-                    await sendTypingAndMessage(chat, 'Opção inválida. Digite "1" para agendar ou "2" para saber mais. Para voltar ao menu digite "menu".');
-                }
-                return;
-            }
-        }
-
-        // --- Fluxo principal ---
-        if (body === '1') {
-            await sendTypingAndMessage(chat, 'Momentos de mudança na família podem ser delicados...');
-            userStates[chatId] = 'familyLaw';
-        } else if (body === '2') {
-            await sendTypingAndMessage(chat, 'Comprou um produto com defeito...');
-            userStates[chatId] = 'consumerLaw';
-        } else if (body === '3') {
-            await sendTypingAndMessage(chat, 'Você foi demitido(a) sem justa causa...');
-            userStates[chatId] = 'laborLaw';
-        } else if (body === '4') {
-            await sendTypingAndMessage(chat, 'Comprando ou vendendo um imóvel?...');
-            userStates[chatId] = 'civilLaw';
-        } else if (body === '5') {
-            await sendTypingAndMessage(chat, 'Teve sua aposentadoria negada...');
-            userStates[chatId] = 'socialSecurityLaw';
-        } else if (body === '6') {
-            await sendTypingAndMessage(chat, '🚨 **ASSISTÊNCIA JURÍDICA URGENTE** 🚨 Em momentos de crise...');
-            userStates[chatId] = 'criminalLaw';
-        } else if (body === '7') {
-            await sendTypingAndMessage(chat, 'Para outros serviços ou dúvidas...');
-            userStates[chatId] = null;
-        } else {
-            await sendTypingAndMessage(chat, 'Desculpe, não entendi. Digite "menu" para ver as opções novamente.');
-        }
-    } catch (err) {
-        console.error('Erro no handler de mensagem:', err.message || err);
-    }
-});
-
-// --- Servidor Express ---
-app.get('/', (req, res) => res.send('🤖 Bot da Dra. Karla está rodando!'));
-
-app.get('/qrcode', (req, res) => {
-    if (!qrCodeData) {
-        return res.send('✅ WhatsApp já conectado ou QR ainda não gerado. Verifique os logs.');
-    }
-    res.send(`<h1>Escaneie o QR Code</h1><img src="${qrCodeData}" />`);
-});
-
-app.listen(PORT, () => console.log(`🚀 Servidor ativo na porta ${PORT}`));
