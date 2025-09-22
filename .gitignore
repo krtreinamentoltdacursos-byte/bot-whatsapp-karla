@@ -1,23 +1,34 @@
-/node_modules
-/.pnp
-.pnp.js
+# =========================
+# Ignorar dependências
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# testing
-/coverage
+# =========================
+# Ignorar build temporário
+# =========================
+dist/
+build/
+.cache/
 
-# production
-/build
-/dist
-/npm-debug.log*
-/yarn-debug.log*
-/yarn-error.log*
-/pnpm-debug.log*
-/pnpm-error.log*
+# =========================
+# Sessões e cache do whatsapp-web.js
+# =========================
+.wwebjs_auth/
+.wwebjs_cache/
 
-# OS files
+# =========================
+# Arquivos de sistema
+# =========================
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# environment variables
+# =========================
+# Ambiente e configs locais
+# =========================
 .env
-.env.local
+*.local

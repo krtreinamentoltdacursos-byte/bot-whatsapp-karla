@@ -1,167 +1,176 @@
-const express = require("express");
-const { Client, LocalAuth } = require("whatsapp-web.js");
-const qrcode = require("qrcode-terminal");
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
+const express = require('express');
 
-const app = express();
-const port = process.env.PORT || 3000;
+// ============================
+// 🔧 CONFIGURAÇÕES DO BOT
+// ============================
+const PROFISSIONAL_NOME = "Dra. Karla Sampaio";
+const AGENDAMENTO_LINK = "https://calendar.app.google/SfBNgXZHyH429Yhy6";
+const CONSULTA_DURACAO = "50 minutos";
+const SOCIAL_LINK = "https://www.tiktok.com/@_karlasampaio_";
 
-// 🚀 Rota básica (Render precisa de uma URL pública)
-app.get("/", (req, res) => {
-  res.send("🤖 Bot Jurídico WhatsApp rodando!");
-});
+// Tempo limite de inatividade (em minutos)
+const TEMPO_INATIVIDADE = 15;
 
-app.listen(port, () => {
-  console.log(`Servidor rodando na porta ${port}`);
-});
-
-// 🔐 Inicializa o cliente WhatsApp
+// ============================
+// 🚀 CONFIGURAÇÃO DO CLIENT
+// ============================
 const client = new Client({
-  authStrategy: new LocalAuth(),
-  puppeteer: {
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
-  },
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+        headless: true,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process',
+            '--disable-gpu'
+        ]
+    }
 });
 
-// Exibe QR Code no terminal
-client.on("qr", (qr) => {
-  qrcode.generate(qr, { small: true });
-  console.log("📲 Escaneie o QR Code acima para conectar seu WhatsApp");
-});
+// ============================
+// ⏱ GERENCIAMENTO DE SESSÕES
+// ============================
+let sessions = {};
+let timers = {};
 
-// Confirma que está pronto
-client.on("ready", () => {
-  console.log("✅ Bot conectado e pronto para uso!");
-});
-
-// ===========================
-// 🔄 Controle de fluxo por cliente
-// ===========================
-let etapas = {}; // { numero: etapa }
-let timers = {}; // { numero: timeout }
-
-// Função para encerrar o contato por inatividade
-function encerrarContato(numero, chat) {
-  chat.sendMessage(
-    "⏳ Como não tivemos mais retorno, estamos encerrando este atendimento.\n\n" +
-    "👉 Quando desejar, pode nos chamar novamente.\n" +
-    "📌 Lembre-se: agende sua consulta de 50 minutos pelo Meet:\n" +
-    "🔗 https://calendar.app.google/SfBNgXZHyH429Yhy6\n\n" +
-    "A *Dra. Karla Sampaio* e sua equipe estarão prontas para ajudar você. ⚖️"
-  );
-  etapas[numero] = 0; // volta ao estado inicial
-  delete timers[numero]; // limpa o timer
+function encerrarContato(from, chat) {
+    chat.sendMessage(
+        `Foi um prazer falar com você! 😊\n\n` +
+        `Se desejar, pode agendar sua consulta agora mesmo: ${AGENDAMENTO_LINK}\n\n` +
+        `Siga nossas dicas também no TikTok 👉 ${SOCIAL_LINK}\n\n` +
+        `Até breve, ${PROFISSIONAL_NOME} 💼`
+    );
+    delete sessions[from];
+    delete timers[from];
 }
 
-// Automação principal
-client.on("message", async (msg) => {
-  const from = msg.from; // Número do cliente
-  const chat = await msg.getChat();
-
-  // Resetar timer sempre que o cliente falar
-  if (timers[from]) {
-    clearTimeout(timers[from]);
-  }
-  timers[from] = setTimeout(() => encerrarContato(from, chat), 15 * 60 * 1000); // 15 min
-
-  if (!etapas[from]) {
-    etapas[from] = 0; // etapa inicial
-  }
-
-  // =====================
-  // Etapa 0 → Mensagem inicial
-  // =====================
-  if (etapas[from] === 0) {
-    await msg.reply(
-      "👋 Olá! Seja bem-vindo(a).\n\n" +
-      "Sou o assistente jurídico da *Dra. Karla Sampaio*.\n\n" +
-      "Escolha uma das áreas em que deseja atendimento:\n\n" +
-      "1️⃣ Direito de Família 👨‍👩‍👧\n" +
-      "2️⃣ Direito Trabalhista ⚖️\n" +
-      "3️⃣ Direito Previdenciário 👵\n" +
-      "4️⃣ Direito Civil 🏛️\n" +
-      "5️⃣ Direito Criminal 🚨\n\n" +
-      "Ou digite *6* para saber mais sobre nosso trabalho. 📲"
+async function enviarMenu(chat) {
+    await chat.sendMessage(
+        `📌 Você está falando com o *assistente virtual exclusivo da ${PROFISSIONAL_NOME}*.\n\n` +
+        `Oferecemos uma primeira consulta de *${CONSULTA_DURACAO}* no Google Meet.\n\n` +
+        `Escolha abaixo a área do Direito em que deseja atendimento:\n\n` +
+        `1️⃣ Direito da Família 👨‍👩‍👧\n` +
+        `2️⃣ Direito Trabalhista ⚖️\n` +
+        `3️⃣ Direito Civil 📜\n` +
+        `4️⃣ Direito Criminal 🚔\n` +
+        `5️⃣ Direito Previdenciário 💰\n\n` +
+        `👉 Digite o número da opção desejada.\n` +
+        `👉 A qualquer momento, digite *0* para voltar ao menu inicial.`
     );
-    etapas[from] = 1;
-  }
+}
 
-  // =====================
-  // Etapa 1 → Escolha da área
-  // =====================
-  else if (etapas[from] === 1) {
-    switch (msg.body) {
-      case "1":
-        await msg.reply(
-          "👨‍👩‍👧 Você escolheu *Direito de Família*.\n\n" +
-          "Auxiliamos em divórcios, pensão alimentícia, guarda de filhos e partilha de bens.\n\n" +
-          "👉 Para agendar uma consulta estratégica de *50 minutos pelo Google Meet*, clique no link abaixo:\n" +
-          "🔗 https://calendar.app.google/SfBNgXZHyH429Yhy6\n\n" +
-          "✅ Essa consulta é o primeiro passo para resolver sua questão com segurança."
-        );
-        etapas[from] = 0;
-        break;
-
-      case "2":
-        await msg.reply(
-          "⚖️ Você escolheu *Direito Trabalhista*.\n\n" +
-          "Atuamos em causas de rescisão, verbas trabalhistas, assédio moral e direitos não pagos.\n\n" +
-          "👉 Agende sua consulta estratégica de *50 minutos pelo Google Meet*:\n" +
-          "🔗 https://calendar.app.google/SfBNgXZHyH429Yhy6\n\n" +
-          "🔒 Tenha seus direitos garantidos com segurança jurídica."
-        );
-        etapas[from] = 0;
-        break;
-
-      case "3":
-        await msg.reply(
-          "👵 Você escolheu *Direito Previdenciário*.\n\n" +
-          "Ajudamos em aposentadorias, revisões de benefícios, auxílio-doença e pensões.\n\n" +
-          "👉 Reserve sua consulta estratégica de *50 minutos pelo Google Meet*:\n" +
-          "🔗 https://calendar.app.google/SfBNgXZHyH429Yhy6\n\n" +
-          "✅ Tenha clareza sobre seu direito e os próximos passos."
-        );
-        etapas[from] = 0;
-        break;
-
-      case "4":
-        await msg.reply(
-          "🏛️ Você escolheu *Direito Civil*.\n\n" +
-          "Cuidamos de contratos, indenizações, dívidas e demais litígios cíveis.\n\n" +
-          "👉 Agende sua consulta estratégica de *50 minutos pelo Google Meet*:\n" +
-          "🔗 https://calendar.app.google/SfBNgXZHyH429Yhy6\n\n" +
-          "📌 Invista em orientação jurídica antes de tomar decisões importantes."
-        );
-        etapas[from] = 0;
-        break;
-
-      case "5":
-        await msg.reply(
-          "🚨 Você escolheu *Direito Criminal*.\n\n" +
-          "Oferecemos defesa técnica em investigações, audiências e processos criminais.\n\n" +
-          "👉 Marque sua consulta estratégica de *50 minutos pelo Google Meet*:\n" +
-          "🔗 https://calendar.app.google/SfBNgXZHyH429Yhy6\n\n" +
-          "⚖️ Sua liberdade e seus direitos merecem atenção imediata."
-        );
-        etapas[from] = 0;
-        break;
-
-      case "6":
-        await msg.reply(
-          "📲 Para saber mais sobre nosso trabalho e conteúdos exclusivos,\n" +
-          "acesse nossa rede social no TikTok:\n" +
-          "🔗 www.tiktok.com/@_karlasampaio_"
-        );
-        etapas[from] = 0;
-        break;
-
-      default:
-        await msg.reply(
-          "❌ Opção inválida. Por favor, escolha uma das opções do menu inicial."
-        );
-        etapas[from] = 1;
-    }
-  }
+// ============================
+// 📲 EVENTOS DO CLIENT
+// ============================
+client.on('qr', qr => {
+    qrcode.generate(qr, { small: true });
+    console.log('📌 Escaneie o QR Code acima para conectar no WhatsApp.');
 });
 
-// Inicia o cliente
+client.on('ready', () => {
+    console.log('✅ Bot conectado com sucesso!');
+});
+
+client.on('message', async msg => {
+    const from = msg.from;
+    const chat = await msg.getChat();
+
+    // Reinicia contador de inatividade
+    if (timers[from]) clearTimeout(timers[from]);
+    timers[from] = setTimeout(() => encerrarContato(from, chat), TEMPO_INATIVIDADE * 60 * 1000);
+
+    // Comando para reiniciar menu
+    if (msg.body.trim() === '0') {
+        sessions[from] = { etapa: 'inicio' };
+        await enviarMenu(chat);
+        return;
+    }
+
+    // Caso não haja sessão iniciada
+    if (!sessions[from]) {
+        sessions[from] = { etapa: 'inicio' };
+        await enviarMenu(chat);
+        return;
+    }
+
+    // Lógica do menu
+    if (sessions[from].etapa === 'inicio') {
+        switch (msg.body.trim()) {
+            case '1':
+                await chat.sendMessage(
+                    `👨‍👩‍👧 Direito da Família:\n\n` +
+                    `Atuamos em divórcios, guarda de filhos, pensão alimentícia e adoção.\n\n` +
+                    `📌 Agende sua consulta de ${CONSULTA_DURACAO}:\n${AGENDAMENTO_LINK}`
+                );
+                break;
+
+            case '2':
+                await chat.sendMessage(
+                    `⚖️ Direito Trabalhista:\n\n` +
+                    `Defendemos seus direitos em demissões, horas extras e assédio moral.\n\n` +
+                    `📌 Agende sua consulta:\n${AGENDAMENTO_LINK}`
+                );
+                break;
+
+            case '3':
+                await chat.sendMessage(
+                    `📜 Direito Civil:\n\n` +
+                    `Cuidamos de contratos, indenizações e responsabilidade civil.\n\n` +
+                    `📌 Agende sua consulta:\n${AGENDAMENTO_LINK}`
+                );
+                break;
+
+            case '4':
+                await chat.sendMessage(
+                    `🚔 Direito Criminal:\n\n` +
+                    `Atuamos na sua defesa com ética e dedicação em processos criminais.\n\n` +
+                    `📌 Agende sua consulta:\n${AGENDAMENTO_LINK}`
+                );
+                break;
+
+            case '5':
+                await chat.sendMessage(
+                    `💰 Direito Previdenciário:\n\n` +
+                    `Garantimos seus direitos em aposentadorias e benefícios do INSS.\n\n` +
+                    `📌 Agende sua consulta:\n${AGENDAMENTO_LINK}`
+                );
+                break;
+
+            default:
+                await chat.sendMessage(
+                    `❌ Opção inválida. Por favor, digite apenas o número da opção desejada ou *0* para voltar ao menu.`
+                );
+                return;
+        }
+
+        // Encaminhar CTA adicional
+        await chat.sendMessage(
+            `✨ Além disso, confira mais conteúdos em nossa rede social: ${SOCIAL_LINK}`
+        );
+
+        sessions[from].etapa = 'finalizado';
+    }
+});
+
+// ============================
+// 🌐 SERVIDOR EXPRESS (Render)
+// ============================
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+    res.send('🤖 Chatbot da Dra. Karla Sampaio está online e rodando no Render!');
+});
+
+app.listen(PORT, () => {
+    console.log(`🌐 Servidor rodando na porta ${PORT}`);
+});
+
+// Inicia cliente do WhatsApp
 client.initialize();
